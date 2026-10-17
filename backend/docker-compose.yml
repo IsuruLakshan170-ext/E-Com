@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ecom
+      POSTGRES_USER: ecom
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"   # bound to localhost only
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Optional: run the API in a container too (docker compose --profile app up)
+  backend:
+    profiles: ["app"]
+    build: .
+    depends_on: [postgres]
+    env_file: .env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/ecom
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  pgdata: {}

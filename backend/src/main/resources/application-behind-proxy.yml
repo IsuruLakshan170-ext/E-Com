@@ -1,0 +1,13 @@
+# BE-4: activate ONLY when the backend is reachable solely through the reverse proxy (frontend/nginx), e.g.
+#   SPRING_PROFILES_ACTIVE=behind-proxy   TRUSTED_PROXIES='172\.28\.0\.10'
+# The client IP used by the per-IP rate limits, the login throttle and audit rows then comes from X-Forwarded-For,
+# but only for connections that themselves come from a trusted proxy address. Never activate it while port 8080 is
+# reachable directly: anyone could then claim any IP and dodge the per-IP limits.
+server:
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Regex of the proxies' OWN addresses (nginx, plus any load balancer in front of it). Deliberately no default,
+      # so startup fails until it is set: trusting whole private ranges would also trust a client on that network,
+      # and nginx appends to whatever X-Forwarded-For the client sent, so that client could plant a fake IP.
+      internal-proxies: ${TRUSTED_PROXIES}

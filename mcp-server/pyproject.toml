@@ -1,0 +1,26 @@
+[project]
+name = "ecom-mcp-server"
+version = "0.1.0"
+description = "MCP server exposing the E-Com backend's REST API to AI agents. Tools are generated directly from the backend's own OpenAPI document (FastMCP.from_openapi), never hand-duplicated."
+readme = "SPEC.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Pinned exact, verified against PyPI on 2026-10-14 (same discipline as the
+    # frontend's package.json). fastmcp-slim pulls in httpx2, its own HTTP
+    # client, which we also use directly to build the authenticated client
+    # FastMCP.from_openapi() sends every request through.
+    "fastmcp==4.1.0",
+    "httpx2==2.13.1",
+    # Loads mcp-server/.env for local development; harmless no-op if absent.
+    "python-dotenv==1.2.4",
+]
+
+[project.scripts]
+ecom-mcp = "ecom_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ecom_mcp"]

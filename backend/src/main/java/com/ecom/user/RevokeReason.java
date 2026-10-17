@@ -1,0 +1,5 @@
+package com.ecom.user;
+
+public enum RevokeReason {
+    ROTATED, LOGOUT, REUSE_DETECTED, PASSWORD_CHANGED, ROLE_CHANGED, DISABLED, CREDENTIALS_REVOKED
+}

@@ -1,0 +1,12 @@
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local-machine MCP client wiring (hardcoded absolute paths + placeholder key,
+# not portable between machines — see mcp-server/SPEC.md for setup instead)
+.mcp.json
+
+# Each sub-project also keeps its own .gitignore for its own build output,
+# dependencies and .env files (backend/, frontend/, mcp-server/).
