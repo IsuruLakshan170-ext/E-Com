@@ -140,3 +140,15 @@ fastmcp upgrade.
   fail that would otherwise succeed. Not tuned for this yet — revisit if that happens in practice.
 - No containerization / process-manager config for running this continuously (it's currently "spawned by the MCP
   client on demand," which is normal for stdio but not for the eventual networked case above).
+
+
+## Shared-server (http) mode (added 2026-10-20, on Isuru's request to simulate a hosted MCP server)
+
+Added `ECOM_MCP_TRANSPORT=http` and `src/ecom_mcp/remote.py`; SPEC.md, "Two ways to run it", has the design. Verified by
+running the backend (:8080) and this server (:8000) as separate processes and connecting as two callers with different
+keys: no key / fake key -> 401; key A (profile+cart+orders read) saw 13 tools, key B (profile only) saw 6, and B calling
+`listMyOrders` got "Unknown tool". `scripts/verify_wiring.py` (stdio path) still passes. The two callers were two keys of
+the same owner, so they differ by `apiKeyId` in `whoAmI`, not by user.
+
+Not covered: no automated test for `remote.py` yet (the check above was a manual two-client run); no TLS; the
+in-memory scope cache is per process, so several instances would each cache separately.

@@ -78,12 +78,18 @@ def fetch_effective_scopes(config: Config) -> set[str]:
     return set(scopes)
 
 
-def build_route_map_fn(effective_scopes: set[str]):
+def build_route_map_fn(effective_scopes: set[str] | None):
     """Combines M1 (explicit exclusion) and M2 (scope-based filtering) into the
     one `route_map_fn` FastMCP calls per operation — and, per the code review's
     G1, denies by default rather than keeping whatever this function doesn't
     recognize. A route becomes a Tool only by returning None; everything else
     must be excluded explicitly, including the "nothing published" case.
+
+    `effective_scopes=None` is the shared-server (http) case: there is no single
+    key at build time, so the scope check is skipped here and applied per caller
+    instead (see `is_visible_to` and remote.ScopeFilterMiddleware). M1 and G1
+    still apply in full - an operation that is excluded, or that has neither
+    extension, never becomes a tool for anyone.
     """
 
     def route_map_fn(route: HTTPRoute, mcp_type: MCPType) -> MCPType | None:
@@ -95,6 +101,8 @@ def build_route_map_fn(effective_scopes: set[str]):
             # hasAnyAuthority is an OR of scopes (one real case today: the admin
             # returns list, gated by returns:manage OR inventory:write OR
             # finance:write) — holding any one of them is enough to keep the tool.
+            if effective_scopes is None:
+                return None
             return None if set(required) & effective_scopes else MCPType.EXCLUDE
 
         # No x-required-scopes: keep ONLY if the backend explicitly marked this
@@ -107,6 +115,42 @@ def build_route_map_fn(effective_scopes: set[str]):
         return MCPType.EXCLUDE
 
     return route_map_fn
+
+
+def operation_requirements(spec: dict[str, Any]) -> dict[str, frozenset[str] | None]:
+    """operationId -> the scopes it needs (any one is enough), or None when the backend
+    marked it safe for any caller. Operations with neither extension are left out: they
+    are never tools (G1), so they never need a per-caller answer.
+
+    Read straight from the same OpenAPI document the tools are generated from, so the
+    per-caller filter cannot drift from the tool list.
+    """
+    requirements: dict[str, frozenset[str] | None] = {}
+    for path_item in spec.get("paths", {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict) or "operationId" not in operation:
+                continue
+            operation_id = operation["operationId"]
+            if operation_id in EXCLUDED_OPERATIONS:
+                continue
+            required = operation.get(_REQUIRED_SCOPES_EXTENSION)
+            if required:
+                requirements[operation_id] = frozenset(required)
+            elif operation.get(_UNSCOPED_OK_EXTENSION):
+                requirements[operation_id] = None
+    return requirements
+
+
+def is_visible_to(
+    operation_id: str,
+    requirements: dict[str, frozenset[str] | None],
+    scopes: set[str],
+) -> bool:
+    """The per-caller version of M2: same rule as `build_route_map_fn`, one caller's scopes."""
+    if operation_id not in requirements:
+        return False
+    required = requirements[operation_id]
+    return required is None or bool(required & scopes)
 
 
 def annotate_component(route: HTTPRoute, component: Any) -> None:

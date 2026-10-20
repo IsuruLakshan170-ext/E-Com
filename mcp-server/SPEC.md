@@ -42,6 +42,24 @@ Add an endpoint on the backend with a sensible `operationId`, summary and `@PreA
 in `policy.py` for an ordinary new endpoint; `EXCLUDED_OPERATIONS` is maintained by hand only for the rare case of a
 new session/credential-style endpoint that needs the M1 treatment.
 
+## Two ways to run it: local (stdio) and shared (http)
+
+| | `stdio` (default) | `http` (shared / "remote" shape) |
+|---|---|---|
+| Started by | the MCP client, as a child process | you, as its own server (`http://host:8000/mcp`) |
+| Client config | `command` + `env: {ECOM_API_KEY}` | `url` + `headers: {X-API-Key}` |
+| Whose key | one key, read once from the environment | **each caller's own**, sent on every request |
+| Tool list | built once at startup | built per caller (`remote.ScopeFilterMiddleware`) |
+| `ECOM_API_KEY` on the server | required | **refused** - a shared server holds no identity |
+
+In `http` mode (`remote.py`): `ApiKeyGate` rejects a request with no key or a key the backend rejects (401) before
+any MCP work; `CallerDirectory` asks the backend's `whoAmI` once per key and reuses the answer for 30 s;
+`ScopeFilterMiddleware` applies the same M2 rule per caller on both `tools/list` and `tools/call` (a tool you are
+not shown answers "Unknown tool", the same as one that does not exist); `PerCallerKeyAuth` stamps the calling
+person's key on the backend request - there is deliberately no fallback key. M1 and G1 apply unchanged. The backend
+still re-checks every key on every call; the 30 s cache only bounds how stale the front-door check and tool list are.
+Loopback only (`127.0.0.1`) by default and plain HTTP - a real deployment puts TLS in front of it.
+
 ## Where the tool list comes from (M3)
 
 `ECOM_OPENAPI_SOURCE=cached` is the default, and the only mode production should use: tools are generated from a

@@ -24,6 +24,9 @@ _DEFAULT_SERVER_NAME = "E-Com"
 _DEFAULT_OPENAPI_SOURCE = "cached"
 _VALID_OPENAPI_SOURCES = frozenset({"cached", "live"})
 _PLACEHOLDER_KEYS = frozenset({"", "ek_replace-with-a-real-scoped-key"})
+_DEFAULT_HOST = "127.0.0.1"
+_DEFAULT_PORT = 8000
+_VALID_TRANSPORTS = frozenset({"stdio", "http"})
 
 
 @dataclass(frozen=True)
@@ -35,13 +38,40 @@ class Config:
     openapi_cache_file: str | None
     openapi_source: str
     server_name: str
+    # "stdio": launched by the client, one key from the environment (one local user).
+    # "http": a standalone server the client connects to by URL; holds NO key of its own,
+    # every caller sends theirs in the X-API-Key header (the shared / "remote" shape).
+    transport: str = "stdio"
+    host: str = _DEFAULT_HOST
+    port: int = _DEFAULT_PORT
 
 
 def load_config() -> Config:
     api_base_url = os.environ.get("ECOM_API_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
 
+    transport = os.environ.get("ECOM_MCP_TRANSPORT", "stdio")
+    if transport not in _VALID_TRANSPORTS:
+        raise RuntimeError(
+            f"ECOM_MCP_TRANSPORT must be one of {sorted(_VALID_TRANSPORTS)}, got {transport!r}"
+        )
+    port_raw = os.environ.get("ECOM_MCP_PORT", str(_DEFAULT_PORT))
+    try:
+        port = int(port_raw)
+    except ValueError as exc:
+        raise RuntimeError(f"ECOM_MCP_PORT must be a whole number, got {port_raw!r}") from exc
+
     api_key = os.environ.get("ECOM_API_KEY", "")
-    if api_key in _PLACEHOLDER_KEYS:
+    # In http mode the server has no identity of its own: each caller brings their key.
+    # Refusing to hold one here is deliberate - a shared server with a baked-in key would
+    # act as that one person for everybody who connects.
+    if transport == "http":
+        if api_key not in _PLACEHOLDER_KEYS:
+            raise RuntimeError(
+                "ECOM_MCP_TRANSPORT=http must NOT have ECOM_API_KEY set: a shared server holds no "
+                "key of its own. Each caller sends their own in the X-API-Key header."
+            )
+        api_key = ""
+    elif api_key in _PLACEHOLDER_KEYS:
         raise RuntimeError(
             "ECOM_API_KEY is not set. Create a scoped API key for this agent "
             "(createApiKey — see mcp-server/.env.example for the exact steps) "
@@ -88,4 +118,7 @@ def load_config() -> Config:
         openapi_cache_file=openapi_cache_file,
         openapi_source=openapi_source,
         server_name=os.environ.get("ECOM_MCP_SERVER_NAME", _DEFAULT_SERVER_NAME),
+        transport=transport,
+        host=os.environ.get("ECOM_MCP_HOST", _DEFAULT_HOST),
+        port=port,
     )
