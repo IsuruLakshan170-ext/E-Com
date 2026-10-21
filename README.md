@@ -56,6 +56,17 @@ catalog ← inventory ← purchasing
 catalog, cart, inventory, tax ← order ← finance ← returns
 ```
 
+### 🤖 AI agents, safe by design
+
+![AI Agents + E-Commerce: Safe by Design — an agent in Cursor calls the MCP server, which checks key scopes before hitting the same backend API the storefront uses](docs/images/ai-agents-safe-by-design.png)
+
+An agent's request flows through five steps: ask in chat → agent picks a
+tool → MCP server checks the key's scope → backend validates → result goes
+back to the chat. The MCP server only exposes tools that the API key's scopes
+allow, and it never offers login or role-admin tools. Because agents hit the
+same backend endpoints as the React app, there is no back door around RBAC,
+validation or the audit log.
+
 ## ✨ Features
 
 **🛍️ Storefront**
